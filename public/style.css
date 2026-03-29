@@ -133,59 +133,22 @@ body {
   color: var(--text);
 }
 
+.logo-badge {
+  font-size: 0.625rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  padding: 2px 7px;
+  border-radius: 4px;
+  background: var(--accent-dim);
+  color: var(--accent);
+  border: 1px solid rgba(129, 140, 248, 0.2);
+}
+
 .header-controls {
   display: flex;
   align-items: center;
   gap: 12px;
-}
-
-.api-key-compact {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-}
-
-.api-key-status {
-  display: flex;
-  align-items: center;
-  gap: 6px;
-  font-size: 0.75rem;
-  color: var(--text-muted);
-}
-
-.status-dot {
-  width: 6px;
-  height: 6px;
-  border-radius: 50%;
-  background: var(--error);
-  transition: background 0.3s var(--ease);
-}
-
-.status-dot.connected {
-  background: var(--success);
-  box-shadow: 0 0 6px rgba(52, 211, 153, 0.5);
-}
-
-.key-toggle-btn {
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
-  padding: 6px 12px;
-  border: 1px solid var(--border);
-  border-radius: var(--radius-xs);
-  background: var(--surface);
-  color: var(--text-secondary);
-  font-family: inherit;
-  font-size: 0.75rem;
-  font-weight: 500;
-  cursor: pointer;
-  transition: all 0.2s var(--ease);
-}
-
-.key-toggle-btn:hover {
-  border-color: var(--border-hover);
-  background: var(--surface-hover);
-  color: var(--text);
 }
 
 .model-select {
@@ -208,75 +171,6 @@ body {
 .model-select option {
   background: var(--surface-solid);
   color: var(--text);
-}
-
-/* API Key Drawer */
-.api-key-drawer {
-  padding: 12px 32px 14px;
-  border-top: 1px solid var(--border);
-  animation: slideDown 0.25s var(--ease);
-  max-width: 1400px;
-  margin: 0 auto;
-}
-
-.api-key-drawer-inner {
-  display: flex;
-  gap: 8px;
-  max-width: 480px;
-}
-
-.api-key-input {
-  flex: 1;
-  background: var(--surface);
-  border: 1px solid var(--border);
-  border-radius: var(--radius-xs);
-  padding: 8px 12px;
-  color: var(--text);
-  font-family: inherit;
-  font-size: 0.8125rem;
-  outline: none;
-  transition: border-color 0.2s var(--ease);
-}
-
-.api-key-input:focus {
-  border-color: var(--accent);
-}
-
-.api-key-input::placeholder {
-  color: var(--text-muted);
-}
-
-.save-key-btn {
-  padding: 8px 20px;
-  background: var(--accent);
-  border: none;
-  border-radius: var(--radius-xs);
-  color: #09090b;
-  font-family: inherit;
-  font-size: 0.8125rem;
-  font-weight: 600;
-  cursor: pointer;
-  transition: opacity 0.2s var(--ease);
-  white-space: nowrap;
-}
-
-.save-key-btn:hover {
-  opacity: 0.88;
-}
-
-.api-key-hint {
-  margin-top: 8px;
-  font-size: 0.6875rem;
-  color: var(--text-muted);
-}
-
-.api-key-hint a {
-  color: var(--accent);
-  text-decoration: none;
-}
-
-.api-key-hint a:hover {
-  text-decoration: underline;
 }
 
 /* ───────── Main Split Layout ───────── */

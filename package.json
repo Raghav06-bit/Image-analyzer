@@ -1,0 +1,16 @@
+{
+  "name": "vizion-image-analyzer",
+  "version": "1.0.0",
+  "description": "AI Image Analyzer powered by Google Gemini",
+  "scripts": {
+    "start": "node server.js",
+    "dev": "node server.js"
+  },
+  "dependencies": {
+    "dotenv": "^17.3.1",
+    "express": "^4.21.0"
+  },
+  "engines": {
+    "node": ">=18"
+  }
+}

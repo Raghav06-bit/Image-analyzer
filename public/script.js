@@ -9,65 +9,17 @@ const analyzeBtn = document.getElementById('analyze-btn');
 const resultsSection = document.getElementById('results-section');
 const emptyState = document.getElementById('empty-state');
 const errorSection = document.getElementById('error-section');
-const apiKeyInput = document.getElementById('api-key-input');
-const saveKeyBtn = document.getElementById('save-key-btn');
-const apiKeyDrawer = document.getElementById('api-key-drawer');
-const keyToggleBtn = document.getElementById('key-toggle-btn');
-const keyBtnText = document.getElementById('key-btn-text');
-const statusDot = document.getElementById('status-dot');
-const statusText = document.getElementById('status-text');
 const modelSelect = document.getElementById('model-select');
 
 let currentFile = null;
 let currentBase64 = null;
 let currentMimeType = null;
 
-// ─── API Key Management ───
-function getApiKey() {
-  return localStorage.getItem('vizion_gemini_key') || '';
-}
-
-function saveApiKey(key) {
-  localStorage.setItem('vizion_gemini_key', key.trim());
-}
-
-function updateKeyUI() {
-  const hasKey = !!getApiKey();
-  statusDot.classList.toggle('connected', hasKey);
-  statusText.textContent = hasKey ? 'Connected' : 'No API key';
-  keyBtnText.textContent = hasKey ? 'Change' : 'Set Key';
-}
-
-// Initialize
-updateKeyUI();
-
 // Persist model choice
 const savedModel = localStorage.getItem('vizion_model');
 if (savedModel) modelSelect.value = savedModel;
 modelSelect.addEventListener('change', () => {
   localStorage.setItem('vizion_model', modelSelect.value);
-});
-
-// Key drawer toggle
-keyToggleBtn.addEventListener('click', () => {
-  const isHidden = apiKeyDrawer.classList.contains('hidden');
-  apiKeyDrawer.classList.toggle('hidden', !isHidden);
-  if (isHidden) {
-    apiKeyInput.value = getApiKey();
-    apiKeyInput.focus();
-  }
-});
-
-saveKeyBtn.addEventListener('click', () => {
-  const key = apiKeyInput.value.trim();
-  if (!key) { apiKeyInput.focus(); return; }
-  saveApiKey(key);
-  updateKeyUI();
-  apiKeyDrawer.classList.add('hidden');
-});
-
-apiKeyInput.addEventListener('keydown', (e) => {
-  if (e.key === 'Enter') saveKeyBtn.click();
 });
 
 // ─── File Handling ───
@@ -94,7 +46,6 @@ function handleFile(file) {
     analyzeBtn.classList.remove('hidden');
     analyzeBtn.disabled = false;
 
-    // Reset right panel
     resultsSection.classList.add('hidden');
     errorSection.classList.add('hidden');
     emptyState.classList.remove('hidden');
@@ -115,7 +66,6 @@ function clearImage() {
   analyzeBtn.classList.add('hidden');
   analyzeBtn.disabled = true;
 
-  // Reset right panel
   resultsSection.classList.add('hidden');
   errorSection.classList.add('hidden');
   emptyState.classList.remove('hidden');
@@ -143,28 +93,42 @@ dropZone.addEventListener('drop', (e) => {
 
 clearBtn.addEventListener('click', clearImage);
 
-// ─── Gemini API Analysis ───
+// ─── Backend API Call ───
 const FALLBACK_MODELS = [
   'gemini-2.0-flash-lite',
   'gemini-2.0-flash',
   'gemini-2.5-flash'
 ];
 
-async function analyzeWithGemini(base64Data, mimeType) {
-  const apiKey = getApiKey();
-  if (!apiKey) throw new Error('NO_KEY');
-
+async function analyzeImage(base64Data, mimeType) {
   const selected = modelSelect.value;
   const modelsToTry = [selected, ...FALLBACK_MODELS.filter(m => m !== selected)];
   let lastError = null;
 
   for (const model of modelsToTry) {
     try {
-      const result = await callGemini(apiKey, model, base64Data, mimeType);
+      const response = await fetch('/api/analyze', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ base64Data, mimeType, model })
+      });
+
+      const data = await response.json();
+
+      if (!response.ok) {
+        throw new Error(data.error || `Server error: ${response.status}`);
+      }
+
+      // Parse the text response
+      const result = repairAndParse(
+        data.text.replace(/```json\s*/g, '').replace(/```\s*/g, '').trim()
+      );
+
       if (model !== selected) {
         modelSelect.value = model;
         localStorage.setItem('vizion_model', model);
       }
+
       return result;
     } catch (err) {
       lastError = err;
@@ -174,51 +138,6 @@ async function analyzeWithGemini(base64Data, mimeType) {
     }
   }
   throw lastError;
-}
-
-async function callGemini(apiKey, model, base64Data, mimeType) {
-  const url = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${apiKey}`;
-
-  const prompt = `Analyze this image and provide a detailed description. Respond in this exact JSON format only, with no markdown formatting or code fences:
-
-{
-  "identification": "The main subject of the image in 2-5 words",
-  "category": "One of: Animal, Vehicle, Food, Nature, Person, Architecture, Art, Technology, Sports, Chart/Diagram, Object, Other",
-  "emoji": "A single emoji that best represents the main subject",
-  "description": "A detailed 2-3 sentence description of what you see in the image, including colors, composition, and notable details",
-  "tags": ["tag1", "tag2", "tag3", "tag4", "tag5"]
-}
-
-Be accurate and specific. If it's a chart, describe the chart type and data. If it's a vehicle, identify the specific type. Be precise.`;
-
-  const response = await fetch(url, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({
-      contents: [{
-        parts: [
-          { text: prompt },
-          { inlineData: { mimeType, data: base64Data } }
-        ]
-      }],
-      generationConfig: {
-        temperature: 0.2,
-        maxOutputTokens: 1024
-      }
-    })
-  });
-
-  if (!response.ok) {
-    const errData = await response.json().catch(() => ({}));
-    throw new Error(errData?.error?.message || `API error: ${response.status}`);
-  }
-
-  const data = await response.json();
-  const text = data.candidates?.[0]?.content?.parts?.[0]?.text;
-  if (!text) throw new Error('No response from Gemini');
-
-  const cleaned = text.replace(/```json\s*/g, '').replace(/```\s*/g, '').trim();
-  return repairAndParse(cleaned);
 }
 
 // Robust JSON parser
@@ -256,13 +175,6 @@ function repairAndParse(raw) {
 analyzeBtn.addEventListener('click', async () => {
   if (!currentBase64) return;
 
-  const apiKey = getApiKey();
-  if (!apiKey) {
-    apiKeyDrawer.classList.remove('hidden');
-    apiKeyInput.focus();
-    return;
-  }
-
   analyzeBtn.disabled = true;
   analyzeBtn.classList.add('loading');
   emptyState.classList.add('hidden');
@@ -270,7 +182,7 @@ analyzeBtn.addEventListener('click', async () => {
   errorSection.classList.add('hidden');
 
   try {
-    const result = await analyzeWithGemini(currentBase64, currentMimeType);
+    const result = await analyzeImage(currentBase64, currentMimeType);
     showResults(result);
   } catch (err) {
     console.error('Analysis error:', err);
@@ -311,12 +223,10 @@ function showResults(result) {
 function showError(err) {
   let message = '';
 
-  if (err.message === 'NO_KEY') {
-    message = 'Please set your Gemini API key to analyze images.';
-  } else if (err.message.includes('API_KEY_INVALID') || err.message.includes('401')) {
-    message = 'Invalid API key. Get a free key from <a href="https://aistudio.google.com/apikey" target="_blank">Google AI Studio</a>.';
-  } else if (err.message.includes('RATE_LIMIT') || err.message.includes('429') || err.message.includes('quota') || err.message.includes('RESOURCE_EXHAUSTED')) {
-    message = 'Quota exceeded on all models. Switch models or wait a minute.';
+  if (err.message.includes('RATE_LIMIT') || err.message.includes('429') || err.message.includes('quota') || err.message.includes('RESOURCE_EXHAUSTED')) {
+    message = 'Server is busy. Please try again in a moment.';
+  } else if (err.message.includes('Server API key')) {
+    message = 'The server is not configured yet. Please contact the admin.';
   } else {
     message = `Something went wrong: <code>${escapeHtml(err.message)}</code>`;
   }
