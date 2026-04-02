@@ -8,6 +8,12 @@ const PORT = process.env.PORT || 3000;
 // Parse JSON bodies (up to 15MB for base64 images)
 app.use(express.json({ limit: '15mb' }));
 
+// Security & permissions headers (required for camera access on deployed sites)
+app.use((req, res, next) => {
+  res.setHeader('Permissions-Policy', 'camera=(self)');
+  next();
+});
+
 // Serve static frontend files
 app.use(express.static(path.join(__dirname, 'public')));
 
