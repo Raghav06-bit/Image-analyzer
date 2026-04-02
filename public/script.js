@@ -11,9 +11,23 @@ const emptyState = document.getElementById('empty-state');
 const errorSection = document.getElementById('error-section');
 const modelSelect = document.getElementById('model-select');
 
+// Camera DOM references
+const cameraBtn = document.getElementById('camera-btn');
+const cameraModal = document.getElementById('camera-modal');
+const cameraVideo = document.getElementById('camera-video');
+const cameraCanvas = document.getElementById('camera-canvas');
+const cameraFlash = document.getElementById('camera-flash');
+const cameraCaptureBtn = document.getElementById('camera-capture-btn');
+const cameraCancelBtn = document.getElementById('camera-cancel-btn');
+const cameraSwitchBtn = document.getElementById('camera-switch-btn');
+
 let currentFile = null;
 let currentBase64 = null;
 let currentMimeType = null;
+
+// Camera state
+let cameraStream = null;
+let facingMode = 'user'; // 'user' = front, 'environment' = rear
 
 // Persist model choice
 const savedModel = localStorage.getItem('vizion_model');
@@ -247,3 +261,117 @@ function escapeHtml(str) {
   div.textContent = str;
   return div.innerHTML;
 }
+
+// ─── Camera Feature ───
+async function openCamera() {
+  try {
+    // Stop any existing stream first
+    if (cameraStream) {
+      cameraStream.getTracks().forEach(t => t.stop());
+    }
+
+    const constraints = {
+      video: {
+        facingMode: facingMode,
+        width: { ideal: 1920 },
+        height: { ideal: 1080 }
+      },
+      audio: false
+    };
+
+    cameraStream = await navigator.mediaDevices.getUserMedia(constraints);
+    cameraVideo.srcObject = cameraStream;
+    cameraModal.classList.remove('hidden');
+
+    // Mirror only for front camera
+    cameraVideo.style.transform = facingMode === 'user' ? 'scaleX(-1)' : 'scaleX(1)';
+
+  } catch (err) {
+    console.error('Camera access error:', err);
+
+    if (err.name === 'NotAllowedError') {
+      alert('Camera access was denied. Please allow camera permissions in your browser settings and try again.');
+    } else if (err.name === 'NotFoundError' || err.name === 'DevicesNotFoundError') {
+      alert('No camera found on this device.');
+    } else if (err.name === 'NotReadableError') {
+      alert('Camera is already in use by another application.');
+    } else {
+      alert('Could not access the camera. Please make sure your device has a camera and permissions are granted.');
+    }
+  }
+}
+
+function closeCamera() {
+  if (cameraStream) {
+    cameraStream.getTracks().forEach(t => t.stop());
+    cameraStream = null;
+  }
+  cameraVideo.srcObject = null;
+  cameraModal.classList.add('hidden');
+}
+
+async function switchCamera() {
+  facingMode = facingMode === 'user' ? 'environment' : 'user';
+  await openCamera();
+}
+
+function capturePhoto() {
+  if (!cameraStream) return;
+
+  const video = cameraVideo;
+  const canvas = cameraCanvas;
+
+  // Set canvas to match video resolution
+  canvas.width = video.videoWidth;
+  canvas.height = video.videoHeight;
+
+  const ctx = canvas.getContext('2d');
+
+  // Mirror the canvas too if it's the front camera
+  if (facingMode === 'user') {
+    ctx.translate(canvas.width, 0);
+    ctx.scale(-1, 1);
+  }
+
+  ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+
+  // Flash effect
+  cameraFlash.classList.add('flash-active');
+  setTimeout(() => cameraFlash.classList.remove('flash-active'), 400);
+
+  // Convert canvas to file and feed into existing pipeline
+  canvas.toBlob((blob) => {
+    if (!blob) return;
+
+    const timestamp = new Date().toISOString().replace(/[:.]/g, '-');
+    const file = new File([blob], `camera-capture-${timestamp}.jpg`, {
+      type: 'image/jpeg'
+    });
+
+    // Small delay so the user sees the flash
+    setTimeout(() => {
+      closeCamera();
+      handleFile(file);
+    }, 300);
+  }, 'image/jpeg', 0.92);
+}
+
+// Camera event listeners
+cameraBtn.addEventListener('click', (e) => {
+  e.stopPropagation(); // Don't trigger the drop-zone file picker
+  openCamera();
+});
+
+cameraCaptureBtn.addEventListener('click', capturePhoto);
+cameraCancelBtn.addEventListener('click', closeCamera);
+cameraSwitchBtn.addEventListener('click', switchCamera);
+
+// Close on Escape key
+document.addEventListener('keydown', (e) => {
+  if (e.key === 'Escape' && !cameraModal.classList.contains('hidden')) {
+    closeCamera();
+  }
+});
+
+// Close on backdrop click
+document.querySelector('.camera-modal-backdrop')?.addEventListener('click', closeCamera);
